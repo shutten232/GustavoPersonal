@@ -202,6 +202,7 @@
       padding:4px 8px;
       font-size:.7rem;
       border-radius:999px;
+      cursor:pointer;
     }
     .btn-danger{
       background:transparent;
@@ -238,6 +239,7 @@
     }
     .item-info{
       font-size:.78rem;
+      flex:1;
     }
     .item-info strong{
       display:block;
@@ -252,6 +254,11 @@
       text-align:right;
       font-size:.8rem;
       margin-left:6px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:3px;
+      min-width:90px;
     }
     .tag{
       display:inline-block;
@@ -329,7 +336,12 @@
         <div class="card-mini">
           <h3>Disponible esta semana</h3>
           <div class="valor ok" id="resumen-disponible">$0</div>
-          <div class="sub">Ingreso + extras - gastos - pagos deuda</div>
+          <div class="sub">Saldo inicial + ingresos - gastos - pagos deuda</div>
+        </div>
+        <div class="card-mini">
+          <h3>Ingresos esta semana</h3>
+          <div class="valor info" id="resumen-ingresos">$0</div>
+          <div class="sub">Ingreso fijo + ingresos extra</div>
         </div>
         <div class="card-mini">
           <h3>Gastos esta semana</h3>
@@ -359,7 +371,16 @@
             <input type="number" id="deuda-bancor" min="0" step="1000" />
           </div>
         </div>
-        <button class="btn btn-sec" id="btn-guardar-config">Guardar datos</button>
+        <div class="fila">
+          <div>
+            <label for="saldo-inicial">Saldo inicial de la semana ($)</label>
+            <input type="number" id="saldo-inicial" min="0" step="1000" />
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+          <button class="btn btn-sec" id="btn-guardar-config">Guardar datos</button>
+          <button class="btn-sm btn-danger" id="btn-reset">Reiniciar todo</button>
+        </div>
         <p class="sub" id="texto-config"></p>
       </section>
 
@@ -500,6 +521,7 @@
     let state = {
       weeklyIncome: 215000,
       initialDebt: 600000,
+      initialBalanceWeek: 0,
       movements: [],
       training: {
         age: 30,
@@ -510,6 +532,8 @@
         entries: []
       }
     };
+
+    let editingId = null;
 
     function formatoPesos(num){
       if(isNaN(num)) return "$0";
@@ -556,6 +580,7 @@
       if(!data) return;
       if(typeof data.weeklyIncome === "number") state.weeklyIncome = data.weeklyIncome;
       if(typeof data.initialDebt === "number") state.initialDebt = data.initialDebt;
+      if(typeof data.initialBalanceWeek === "number") state.initialBalanceWeek = data.initialBalanceWeek;
       if(Array.isArray(data.movements)) state.movements = data.movements;
       if(data.training){
         state.training = Object.assign(state.training, data.training);
@@ -580,6 +605,29 @@
       }).catch(e=>{
         console.error("Error cargando Firebase", e);
       });
+    }
+
+    function resetAll(){
+      if(!confirm("¿Seguro que querés borrar todo y empezar de cero? Esto borra movimientos y registros de entrenamiento.")) return;
+
+      state = {
+        weeklyIncome: 215000,
+        initialDebt: 600000,
+        initialBalanceWeek: 0,
+        movements: [],
+        training: {
+          age: 30,
+          sex: "hombre",
+          weightKg: null,
+          heightCm: null,
+          activity: "oficina",
+          entries: []
+        }
+      };
+      editingId = null;
+      try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+      try{ db.ref(FIREBASE_PATH).remove(); }catch(e){}
+      refrescarUICompleta();
     }
 
     function calcularResumenFinanzas(){
@@ -607,10 +655,12 @@
         ? Math.min(100, pagosDeudaTotal * 100 / state.initialDebt)
         : 0;
 
-      const disponibleSemana = state.weeklyIncome + ingresosExtraSemana - gastosSemana - pagosDeudaSemana;
+      const ingresosSemana = state.weeklyIncome + ingresosExtraSemana;
+      const disponibleSemana = state.initialBalanceWeek + ingresosSemana - gastosSemana - pagosDeudaSemana;
       const ahorroMesEstimado = Math.max(disponibleSemana * 4, 0);
 
       document.getElementById("resumen-disponible").textContent = formatoPesos(disponibleSemana);
+      document.getElementById("resumen-ingresos").textContent = formatoPesos(ingresosSemana);
       document.getElementById("resumen-gastos").textContent = formatoPesos(gastosSemana);
       document.getElementById("resumen-deuda").textContent = formatoPesos(deudaRestante);
       document.getElementById("resumen-deuda-porcentaje").textContent =
@@ -650,8 +700,37 @@
 
         const right = document.createElement("div");
         right.className = "item-right";
+
+        const amountDiv = document.createElement("div");
         const signo = m.type === "ingreso" ? "+" : "-";
-        right.textContent = signo + formatoPesos(m.amount);
+        amountDiv.textContent = signo + formatoPesos(m.amount);
+
+        const btnEdit = document.createElement("button");
+        btnEdit.className = "btn-sm btn-sec";
+        btnEdit.textContent = "Editar";
+        btnEdit.addEventListener("click", () => {
+          document.getElementById("tipo").value = m.type;
+          document.getElementById("monto").value = m.amount;
+          document.getElementById("descripcion").value = m.description || "";
+          document.getElementById("fecha").value = m.dateISO;
+          editingId = m.id;
+          document.getElementById("btn-agregar").textContent = "Guardar cambios";
+        });
+
+        const btnDel = document.createElement("button");
+        btnDel.className = "btn-sm btn-danger";
+        btnDel.textContent = "Borrar";
+        btnDel.addEventListener("click", () => {
+          if(!confirm("¿Borrar este movimiento?")) return;
+          state.movements = state.movements.filter(x => x.id !== m.id);
+          saveState();
+          calcularResumenFinanzas();
+          renderMovimientos();
+        });
+
+        right.appendChild(amountDiv);
+        right.appendChild(btnEdit);
+        right.appendChild(btnDel);
 
         div.appendChild(info);
         div.appendChild(right);
@@ -794,12 +873,22 @@
     function refrescarUICompleta(){
       document.getElementById("ingreso-semanal").value = state.weeklyIncome;
       document.getElementById("deuda-bancor").value = state.initialDebt;
+      document.getElementById("saldo-inicial").value = state.initialBalanceWeek;
 
       document.getElementById("edad").value = state.training.age || 30;
       document.getElementById("sexo").value = state.training.sex || "hombre";
       if(state.training.weightKg) document.getElementById("peso").value = state.training.weightKg;
+      else document.getElementById("peso").value = "";
       if(state.training.heightCm) document.getElementById("altura").value = state.training.heightCm;
+      else document.getElementById("altura").value = "";
       document.getElementById("actividad").value = state.training.activity || "oficina";
+
+      document.getElementById("fecha").value = hoyISO();
+      document.getElementById("fecha-cal").value = hoyISO();
+
+      editingId = null;
+      const btnAgregar = document.getElementById("btn-agregar");
+      if(btnAgregar) btnAgregar.textContent = "Agregar movimiento";
 
       calcularResumenFinanzas();
       renderMovimientos();
@@ -825,15 +914,20 @@
       document.getElementById("btn-guardar-config").addEventListener("click", () => {
         const ingreso = Number(document.getElementById("ingreso-semanal").value) || 0;
         const deuda = Number(document.getElementById("deuda-bancor").value) || 0;
+        const saldoInicial = Number(document.getElementById("saldo-inicial").value) || 0;
         state.weeklyIncome = ingreso;
         state.initialDebt = deuda;
+        state.initialBalanceWeek = saldoInicial;
         saveState();
         calcularResumenFinanzas();
         const t = document.getElementById("texto-config");
         t.textContent = "Base actualizada: ingreso $" + ingreso.toLocaleString("es-AR") +
-          " / semana y deuda $" + deuda.toLocaleString("es-AR") + ".";
+          " / semana, deuda $" + deuda.toLocaleString("es-AR") +
+          " y saldo inicial $" + saldoInicial.toLocaleString("es-AR") + ".";
         setTimeout(() => { t.textContent = ""; }, 3000);
       });
+
+      document.getElementById("btn-reset").addEventListener("click", resetAll);
 
       document.getElementById("btn-agregar").addEventListener("click", () => {
         const tipo = document.getElementById("tipo").value;
@@ -850,13 +944,26 @@
           return;
         }
 
-        state.movements.push({
-          id: Date.now(),
-          type: tipo,
-          amount: monto,
-          description: desc,
-          dateISO: fecha
-        });
+        if(editingId){
+          const idx = state.movements.findIndex(x => x.id === editingId);
+          if(idx !== -1){
+            state.movements[idx].type = tipo;
+            state.movements[idx].amount = monto;
+            state.movements[idx].description = desc;
+            state.movements[idx].dateISO = fecha;
+          }
+          editingId = null;
+          document.getElementById("btn-agregar").textContent = "Agregar movimiento";
+        }else{
+          state.movements.push({
+            id: Date.now(),
+            type: tipo,
+            amount: monto,
+            description: desc,
+            dateISO: fecha
+          });
+        }
+
         saveState();
 
         document.getElementById("monto").value = "";
