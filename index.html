@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel personal – Finanzas y Entrenamiento (Firebase)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Firebase v8 (para funcionar directo en HTML estático) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <style>
+    :root{
+      --bg:#020617;
+      --card:#020b1f;
+      --card-soft:#0b1220;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --text-soft:#9ca3af;
+      --accent:#38bdf8;
+      --accent-soft:#0ea5e9;
+      --green:#22c55e;
+      --red:#ef4444;
+      --amber:#facc15;
+    }
+    *{
+      box-sizing:border-box;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    body{
+      margin:0;
+      padding:10px;
+      min-height:100vh;
+      background:radial-gradient(circle at top,#020b1f 0,#020617 45%,#000 100%);
+      color:var(--text);
+      display:flex;
+      justify-content:center;
+    }
+    .app{
+      width:100%;
+      max-width:1040px;
+    }
+    header{
+      padding:6px 4px 10px;
+    }
+    header h1{
+      font-size:1.4rem;
+      margin:0 0 2px;
+      font-weight:650;
+    }
+    header p{
+      margin:0;
+      font-size:.9rem;
+      color:var(--text-soft);
+    }
+    .pill{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:8px;
+      font-size:.78rem;
+    }
+    .pill span{
+      padding:3px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.9);
+      color:var(--text-soft);
+    }
+
+    .tabs{
+      margin:8px 0 10px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      border-bottom:1px solid var(--border);
+      padding-bottom:4px;
+    }
+    .tab-btn{
+      border-radius:999px;
+      padding:6px 14px;
+      font-size:.85rem;
+      border:1px solid transparent;
+      background:transparent;
+      color:var(--text-soft);
+      cursor:pointer;
+    }
+    .tab-btn.activo{
+      border-color:var(--accent);
+      background:rgba(15,23,42,.9);
+      color:var(--accent);
+      box-shadow:0 0 0 1px rgba(56,189,248,.15);
+    }
+    .tab{ display:none; }
+    .tab.activo{ display:block; }
+
+    .grid-resumen{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      margin-bottom:10px;
+    }
+    @media (min-width:720px){
+      .grid-resumen{
+        grid-template-columns:repeat(4,minmax(0,1fr));
+      }
+    }
+    .card-mini{
+      background:radial-gradient(circle at top left,rgba(56,189,248,.08),var(--card-soft));
+      border-radius:12px;
+      border:1px solid var(--border);
+      padding:8px 10px;
+    }
+    .card-mini h3{
+      margin:0 0 4px;
+      font-size:.8rem;
+      color:var(--text-soft);
+      font-weight:500;
+    }
+    .card-mini .valor{
+      font-size:1.1rem;
+      font-weight:650;
+      margin-bottom:2px;
+    }
+    .ok{ color:var(--green); }
+    .mal{ color:var(--red); }
+    .info{ color:var(--accent); }
+
+    .card{
+      background:linear-gradient(145deg,rgba(15,23,42,.92),var(--card-soft));
+      border-radius:14px;
+      border:1px solid var(--border);
+      padding:11px;
+      margin-bottom:9px;
+      box-shadow:0 20px 40px rgba(0,0,0,.55);
+    }
+    .card h2{
+      margin:0 0 6px;
+      font-size:1rem;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .card h2 span{
+      font-size:.78rem;
+      font-weight:400;
+      color:var(--text-soft);
+    }
+    label{
+      font-size:.8rem;
+      color:var(--text-soft);
+      display:block;
+      margin-bottom:2px;
+    }
+    input, select{
+      width:100%;
+      padding:7px 8px;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background:#020617;
+      color:var(--text);
+      font-size:.85rem;
+    }
+    input:focus, select:focus{
+      outline:none;
+      border-color:var(--accent-soft);
+      box-shadow:0 0 0 1px rgba(56,189,248,.4);
+      background:#020b1f;
+    }
+    .fila{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      margin-bottom:8px;
+    }
+    @media (max-width:520px){
+      .fila{
+        grid-template-columns:1fr;
+      }
+    }
+    .btn{
+      border:none;
+      border-radius:999px;
+      padding:8px 12px;
+      font-size:.85rem;
+      font-weight:600;
+      cursor:pointer;
+      background:linear-gradient(135deg,var(--accent-soft),#0ea5e9);
+      color:#020617;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:4px;
+    }
+    .btn-sec{
+      background:transparent;
+      color:var(--text-soft);
+      border:1px solid var(--border);
+    }
+    .btn-sm{
+      padding:4px 8px;
+      font-size:.7rem;
+      border-radius:999px;
+    }
+    .btn-danger{
+      background:transparent;
+      color:var(--red);
+      border:1px solid rgba(239,68,68,.5);
+    }
+    .btn:hover{
+      filter:brightness(1.05);
+    }
+    .btn-danger:hover{
+      background:rgba(239,68,68,.1);
+    }
+
+    .lista{
+      max-height:260px;
+      overflow-y:auto;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background:#020617;
+    }
+    .item{
+      display:flex;
+      justify-content:space-between;
+      padding:7px 9px;
+      border-bottom:1px solid #020b1f;
+      background:#020b1f;
+      font-size:.8rem;
+    }
+    .item:nth-child(2n){
+      background:#020617;
+    }
+    .item:last-child{
+      border-bottom:none;
+    }
+    .item-info{
+      font-size:.78rem;
+    }
+    .item-info strong{
+      display:block;
+      font-size:.82rem;
+    }
+    .item-info span{
+      display:block;
+      color:var(--text-soft);
+      margin-top:2px;
+    }
+    .item-right{
+      text-align:right;
+      font-size:.8rem;
+      margin-left:6px;
+    }
+    .tag{
+      display:inline-block;
+      padding:1px 7px;
+      border-radius:999px;
+      font-size:.7rem;
+      border:1px solid var(--border);
+      margin-top:3px;
+      color:var(--text-soft);
+    }
+    .tag.g{ border-color:rgba(239,68,68,.7); color:var(--red); }
+    .tag.i{ border-color:rgba(34,197,94,.7); color:var(--green); }
+    .tag.d{ border-color:rgba(250,204,21,.7); color:var(--amber); }
+
+    .empty{
+      font-size:.8rem;
+      color:var(--text-soft);
+      padding:8px;
+      text-align:center;
+      background:#020617;
+    }
+    .sub{
+      font-size:.78rem;
+      color:var(--text-soft);
+      margin-top:4px;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:2px 7px;
+      border-radius:999px;
+      font-size:.7rem;
+      background:#111827;
+      color:var(--text-soft);
+      margin-left:4px;
+    }
+    .badge-deficit{
+      background:rgba(34,197,94,.12);
+      color:var(--green);
+    }
+    .badge-superavit{
+      background:rgba(239,68,68,.12);
+      color:var(--red);
+    }
+    .badge-mant{
+      background:rgba(148,163,184,.25);
+      color:var(--text-soft);
+    }
+
+    .ok{ color:var(--green); }
+    .mal{ color:var(--red); }
+    .info{ color:var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Panel personal</h1>
+      <p>Finanzas y entrenamiento en modo oscuro, datos guardados en Firebase (gustavopersonal).</p>
+      <div class="pill">
+        <span>Ingreso base referencia: $215.000 / semana</span>
+        <span>Deuda Bancor inicial referencia: $600.000</span>
+        <span>Perfil: hombre · 30 años · trabajo de oficina</span>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn activo" data-tab="finanzas">Finanzas</button>
+      <button class="tab-btn" data-tab="entrenamiento">Entrenamiento</button>
+    </div>
+
+    <!-- TAB FINANZAS -->
+    <div id="tab-finanzas" class="tab activo">
+      <section class="grid-resumen">
+        <div class="card-mini">
+          <h3>Disponible esta semana</h3>
+          <div class="valor ok" id="resumen-disponible">$0</div>
+          <div class="sub">Ingreso + extras - gastos - pagos deuda</div>
+        </div>
+        <div class="card-mini">
+          <h3>Gastos esta semana</h3>
+          <div class="valor mal" id="resumen-gastos">$0</div>
+        </div>
+        <div class="card-mini">
+          <h3>Deuda Bancor restante</h3>
+          <div class="valor info" id="resumen-deuda">$0</div>
+          <div class="sub" id="resumen-deuda-porcentaje">0% pagado</div>
+        </div>
+        <div class="card-mini">
+          <h3>Ahorro estimado mes</h3>
+          <div class="valor ok" id="resumen-ahorro-mes">$0</div>
+          <div class="sub">Si repetís esta semana 4 veces</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>1. Datos base <span>Solo cuando cambie tu ingreso o la deuda</span></h2>
+        <div class="fila">
+          <div>
+            <label for="ingreso-semanal">Ingreso fijo por semana ($)</label>
+            <input type="number" id="ingreso-semanal" min="0" step="1000" />
+          </div>
+          <div>
+            <label for="deuda-bancor">Deuda Bancor actual ($)</label>
+            <input type="number" id="deuda-bancor" min="0" step="1000" />
+          </div>
+        </div>
+        <button class="btn btn-sec" id="btn-guardar-config">Guardar datos</button>
+        <p class="sub" id="texto-config"></p>
+      </section>
+
+      <section class="card">
+        <h2>2. Movimiento nuevo <span>Lo que pase en la semana</span></h2>
+        <div class="fila">
+          <div>
+            <label for="tipo">Tipo</label>
+            <select id="tipo">
+              <option value="gasto">Gasto</option>
+              <option value="ingreso">Ingreso extra</option>
+              <option value="deuda">Pago deuda Bancor</option>
+            </select>
+          </div>
+          <div>
+            <label for="monto">Monto ($)</label>
+            <input type="number" id="monto" min="0" step="500" />
+          </div>
+        </div>
+        <label for="descripcion">Descripción</label>
+        <input type="text" id="descripcion" placeholder="Ej: súper, nafta, alquiler..." />
+
+        <div style="margin-top:8px;">
+          <label for="fecha">Fecha</label>
+          <input type="date" id="fecha" />
+        </div>
+
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn" id="btn-agregar">Agregar movimiento</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. Movimientos guardados <span>Se guardan en Firebase</span></h2>
+        <div class="lista" id="lista-mov"></div>
+        <p class="sub" id="sub-mov"></p>
+      </section>
+    </div>
+
+    <!-- TAB ENTRENAMIENTO -->
+    <div id="tab-entrenamiento" class="tab">
+      <section class="card">
+        <h2>1. Datos físicos base <span>Para estimar gasto calórico diario</span></h2>
+        <div class="fila">
+          <div>
+            <label for="edad">Edad (años)</label>
+            <input type="number" id="edad" min="15" max="80" />
+          </div>
+          <div>
+            <label for="sexo">Sexo</label>
+            <select id="sexo">
+              <option value="hombre">Hombre</option>
+              <option value="mujer">Mujer</option>
+            </select>
+          </div>
+        </div>
+        <div class="fila">
+          <div>
+            <label for="peso">Peso (kg)</label>
+            <input type="number" id="peso" min="40" max="200" step="0.1" />
+          </div>
+          <div>
+            <label for="altura">Altura (cm)</label>
+            <input type="number" id="altura" min="140" max="220" />
+          </div>
+        </div>
+        <div>
+          <label for="actividad">Actividad diaria</label>
+          <select id="actividad">
+            <option value="oficina">Oficina / sedentario</option>
+            <option value="ligera">Ligera</option>
+            <option value="moderada">Moderada</option>
+            <option value="alta">Alta</option>
+          </select>
+        </div>
+        <button class="btn btn-sec" id="btn-guardar-fisico" style="margin-top:8px;">Guardar datos físicos</button>
+        <p class="sub" id="texto-fisico"></p>
+      </section>
+
+      <section class="card">
+        <h2>2. Registro diario del reloj <span>Calorías totales gastadas</span></h2>
+        <div class="fila">
+          <div>
+            <label for="fecha-cal">Fecha</label>
+            <input type="date" id="fecha-cal" />
+          </div>
+          <div>
+            <label for="cals-reloj">Calorías del reloj</label>
+            <input type="number" id="cals-reloj" min="0" step="10" />
+          </div>
+        </div>
+        <div class="fila">
+          <div>
+            <label for="dist-km">Distancia (km)</label>
+            <input type="number" id="dist-km" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="minutos">Tiempo total (min)</label>
+            <input type="number" id="minutos" min="0" step="1" />
+          </div>
+        </div>
+        <button class="btn" id="btn-agregar-cal">Agregar registro</button>
+        <p class="sub">Cargá 1 vez al día los datos principales que te marque el reloj.</p>
+      </section>
+
+      <section class="card">
+        <h2>3. Resumen y registros <span>Promedio y tendencia</span></h2>
+        <div class="fila">
+          <div>
+            <p class="sub" id="texto-mantenimiento">Mantenimiento estimado: —</p>
+            <p class="sub" id="texto-promedio-semana">Promedio últimos 7 días (reloj): —</p>
+            <p class="sub" id="texto-diferencia">Diferencia vs mantenimiento: —</p>
+            <p class="sub" id="texto-peso-mes">Estimación de cambio por mes: —</p>
+          </div>
+        </div>
+        <div class="lista" id="lista-cal"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Config Firebase proyecto personal
+    var firebaseConfig = {
+      apiKey: "AIzaSyAQ9QMQdrdJl8MfxiQc8eCLGwh1nKnU5Dw",
+      authDomain: "gustavopersonal-5449b.firebaseapp.com",
+      databaseURL: "https://gustavopersonal-5449b-default-rtdb.firebaseio.com",
+      projectId: "gustavopersonal-5449b",
+      storageBucket: "gustavopersonal-5449b.firebasestorage.app",
+      messagingSenderId: "813873716102",
+      appId: "1:813873716102:web:8c4766a553dc20faa66a07",
+      measurementId: "G-Z8QJ4H654W"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+    const FIREBASE_PATH = "panelPersonal/usuario_unico";
+    const STORAGE_KEY = "panel_personal_firebase_backup";
+
+    let state = {
+      weeklyIncome: 215000,
+      initialDebt: 600000,
+      movements: [],
+      training: {
+        age: 30,
+        sex: "hombre",
+        weightKg: null,
+        heightCm: null,
+        activity: "oficina",
+        entries: []
+      }
+    };
+
+    function formatoPesos(num){
+      if(isNaN(num)) return "$0";
+      return "$" + num.toLocaleString("es-AR",{maximumFractionDigits:0});
+    }
+    function hoyISO(){
+      const d = new Date();
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off*60000);
+      return local.toISOString().slice(0,10);
+    }
+    function parseDateISO(iso){
+      return new Date(iso + "T00:00:00");
+    }
+    function esEstaSemana(date){
+      const hoy = new Date();
+      const dia = hoy.getDay();
+      const diffLunes = (dia === 0 ? -6 : 1 - dia);
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() + diffLunes);
+      lunes.setHours(0,0,0,0);
+      const domingo = new Date(lunes);
+      domingo.setDate(lunes.getDate() + 6);
+      domingo.setHours(23,59,59,999);
+      return date >= lunes && date <= domingo;
+    }
+    function formatearFechaLinda(iso){
+      const d = parseDateISO(iso);
+      return d.toLocaleDateString("es-AR",{weekday:"short", day:"2-digit", month:"2-digit"});
+    }
+
+    function saveState(){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }catch(e){}
+      try{
+        db.ref(FIREBASE_PATH).set(state);
+      }catch(e){
+        console.error("Error guardando en Firebase", e);
+      }
+    }
+
+    function mergeLoaded(data){
+      if(!data) return;
+      if(typeof data.weeklyIncome === "number") state.weeklyIncome = data.weeklyIncome;
+      if(typeof data.initialDebt === "number") state.initialDebt = data.initialDebt;
+      if(Array.isArray(data.movements)) state.movements = data.movements;
+      if(data.training){
+        state.training = Object.assign(state.training, data.training);
+        if(!Array.isArray(state.training.entries)) state.training.entries = [];
+      }
+    }
+
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const parsed = JSON.parse(raw);
+          mergeLoaded(parsed);
+        }
+      }catch(e){}
+      db.ref(FIREBASE_PATH).once("value").then(snap=>{
+        const data = snap.val();
+        if(data){
+          mergeLoaded(data);
+        }
+        refrescarUICompleta();
+      }).catch(e=>{
+        console.error("Error cargando Firebase", e);
+      });
+    }
+
+    function calcularResumenFinanzas(){
+      let gastosSemana = 0;
+      let pagosDeudaSemana = 0;
+      let ingresosExtraSemana = 0;
+      let pagosDeudaTotal = 0;
+
+      state.movements.forEach(m => {
+        const d = parseDateISO(m.dateISO);
+        if(m.type === "deuda"){
+          pagosDeudaTotal += m.amount;
+          if(esEstaSemana(d)) pagosDeudaSemana += m.amount;
+        }
+        if(m.type === "gasto" && esEstaSemana(d)){
+          gastosSemana += m.amount;
+        }
+        if(m.type === "ingreso" && esEstaSemana(d)){
+          ingresosExtraSemana += m.amount;
+        }
+      });
+
+      const deudaRestante = Math.max(state.initialDebt - pagosDeudaTotal, 0);
+      const porcentajePagado = state.initialDebt > 0
+        ? Math.min(100, pagosDeudaTotal * 100 / state.initialDebt)
+        : 0;
+
+      const disponibleSemana = state.weeklyIncome + ingresosExtraSemana - gastosSemana - pagosDeudaSemana;
+      const ahorroMesEstimado = Math.max(disponibleSemana * 4, 0);
+
+      document.getElementById("resumen-disponible").textContent = formatoPesos(disponibleSemana);
+      document.getElementById("resumen-gastos").textContent = formatoPesos(gastosSemana);
+      document.getElementById("resumen-deuda").textContent = formatoPesos(deudaRestante);
+      document.getElementById("resumen-deuda-porcentaje").textContent =
+        (porcentajePagado || 0).toFixed(1) + "% pagado";
+      document.getElementById("resumen-ahorro-mes").textContent = formatoPesos(ahorroMesEstimado);
+    }
+
+    function renderMovimientos(){
+      const cont = document.getElementById("lista-mov");
+      cont.innerHTML = "";
+      if(state.movements.length === 0){
+        cont.innerHTML = '<div class="empty">Todavía no cargaste ningún movimiento.</div>';
+        document.getElementById("sub-mov").textContent = "";
+        return;
+      }
+      const ordenados = state.movements.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO));
+      ordenados.forEach(m => {
+        const div = document.createElement("div");
+        div.className = "item";
+
+        const info = document.createElement("div");
+        info.className = "item-info";
+
+        const strong = document.createElement("strong");
+        strong.textContent = m.description || (m.type === "gasto" ? "Gasto" :
+                          m.type === "ingreso" ? "Ingreso extra" : "Pago deuda Bancor");
+        info.appendChild(strong);
+
+        const span = document.createElement("span");
+        span.textContent = formatearFechaLinda(m.dateISO);
+        info.appendChild(span);
+
+        const tag = document.createElement("span");
+        tag.className = "tag " + (m.type === "gasto" ? "g" : m.type === "ingreso" ? "i" : "d");
+        tag.textContent = m.type === "gasto" ? "Gasto" : m.type === "ingreso" ? "Ingreso" : "Deuda";
+        info.appendChild(tag);
+
+        const right = document.createElement("div");
+        right.className = "item-right";
+        const signo = m.type === "ingreso" ? "+" : "-";
+        right.textContent = signo + formatoPesos(m.amount);
+
+        div.appendChild(info);
+        div.appendChild(right);
+        cont.appendChild(div);
+      });
+      document.getElementById("sub-mov").textContent =
+        "Total movimientos guardados: " + state.movements.length;
+    }
+
+    function actividadFactor(act){
+      if(act === "oficina") return 1.4;
+      if(act === "ligera") return 1.55;
+      if(act === "moderada") return 1.7;
+      if(act === "alta") return 1.9;
+      return 1.4;
+    }
+    function calcularMantenimiento(){
+      const t = state.training;
+      if(!t.weightKg || !t.heightCm || !t.age) return null;
+      let bmr;
+      if(t.sex === "mujer"){
+        bmr = 10 * t.weightKg + 6.25 * t.heightCm - 5 * t.age - 161;
+      }else{
+        bmr = 10 * t.weightKg + 6.25 * t.heightCm - 5 * t.age + 5;
+      }
+      return bmr * actividadFactor(t.activity);
+    }
+    function promedioUltimos7Dias(){
+      const entries = state.training.entries;
+      if(entries.length === 0) return null;
+      const hoy = new Date();
+      const hace7 = new Date();
+      hace7.setDate(hoy.getDate() - 6);
+      let sum = 0;
+      let count = 0;
+      entries.forEach(e => {
+        const d = parseDateISO(e.dateISO);
+        if(d >= hace7 && d <= hoy){
+          sum += e.calories || 0;
+          count++;
+        }
+      });
+      if(count === 0) return null;
+      return sum / count;
+    }
+
+    function renderEntrenamientoResumen(){
+      const mant = calcularMantenimiento();
+      const prom7 = promedioUltimos7Dias();
+
+      const txtMant = document.getElementById("texto-mantenimiento");
+      const txtProm = document.getElementById("texto-promedio-semana");
+      const txtDif = document.getElementById("texto-diferencia");
+      const txtPesoMes = document.getElementById("texto-peso-mes");
+
+      if(mant){
+        txtMant.textContent = "Mantenimiento estimado: " + Math.round(mant).toLocaleString("es-AR") + " kcal/día (aprox.).";
+      }else{
+        txtMant.textContent = "Mantenimiento estimado: completá peso, altura y edad para calcular.";
+      }
+
+      if(prom7){
+        txtProm.textContent = "Promedio últimos 7 días (reloj): " + Math.round(prom7).toLocaleString("es-AR") + " kcal/día.";
+      }else{
+        txtProm.textContent = "Promedio últimos 7 días (reloj): todavía no hay suficientes días cargados.";
+      }
+
+      if(mant && prom7){
+        const diff = prom7 - mant;
+        const signo = diff > 0 ? "+" : "";
+        txtDif.textContent = "Diferencia vs mantenimiento: " + signo + Math.round(diff).toLocaleString("es-AR") + " kcal/día (teórico).";
+        const deficit = mant - prom7;
+        if(deficit > 0){
+          const cambioMes = (deficit * 30) / 7700;
+          txtPesoMes.textContent = "Con ese déficit teórico, tenderías a bajar aprox. " +
+            cambioMes.toFixed(2) + " kg por mes.";
+        }else if(deficit < 0){
+          const subeMes = (Math.abs(deficit) * 30) / 7700;
+          txtPesoMes.textContent = "Con ese superávit teórico, tenderías a subir aprox. " +
+            subeMes.toFixed(2) + " kg por mes.";
+        }else{
+          txtPesoMes.textContent = "Estás justo en mantenimiento teórico.";
+        }
+      }else{
+        txtDif.textContent = "Diferencia vs mantenimiento: —";
+        txtPesoMes.textContent = "Estimación de cambio por mes: cargá datos físicos y varios días del reloj.";
+      }
+    }
+
+    function renderListaCalorias(){
+      const cont = document.getElementById("lista-cal");
+      cont.innerHTML = "";
+      const entries = state.training.entries.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO));
+      if(entries.length === 0){
+        cont.innerHTML = '<div class="empty">Todavía no cargaste registros de entrenamiento.</div>';
+        return;
+      }
+      const mant = calcularMantenimiento();
+      entries.forEach(e => {
+        const row = document.createElement("div");
+        row.className = "item";
+
+        const left = document.createElement("div");
+        left.className = "item-info";
+        left.innerHTML = "<strong>" + formatearFechaLinda(e.dateISO) + "</strong>";
+
+        const span = document.createElement("span");
+        let txt = (e.distKm || 0) + " km · " + (e.minutes || 0) + " min · " +
+                  (e.calories || 0) + " kcal";
+        span.textContent = txt;
+        left.appendChild(span);
+
+        if(mant && e.calories){
+          const diff = e.calories - mant;
+          let meta = "Dif vs mant.: " + (diff>0?"+":"") + Math.round(diff).toLocaleString("es-AR") + " kcal";
+          const metaDiv = document.createElement("span");
+          metaDiv.className = "sub";
+          if(Math.abs(diff) < 150){
+            metaDiv.innerHTML = meta + ' <span class="badge badge-mant">cerca de mant.</span>';
+          }else if(diff < -150){
+            metaDiv.innerHTML = meta + ' <span class="badge badge-deficit">día en déficit</span>';
+          }else if(diff > 150){
+            metaDiv.innerHTML = meta + ' <span class="badge badge-superavit">día en superávit</span>';
+          }else{
+            metaDiv.textContent = meta;
+          }
+          left.appendChild(metaDiv);
+        }
+
+        const right = document.createElement("div");
+        right.className = "item-right";
+        right.textContent = (e.calories || 0).toLocaleString("es-AR") + " kcal";
+
+        row.appendChild(left);
+        row.appendChild(right);
+        cont.appendChild(row);
+      });
+    }
+
+    function refrescarUICompleta(){
+      document.getElementById("ingreso-semanal").value = state.weeklyIncome;
+      document.getElementById("deuda-bancor").value = state.initialDebt;
+
+      document.getElementById("edad").value = state.training.age || 30;
+      document.getElementById("sexo").value = state.training.sex || "hombre";
+      if(state.training.weightKg) document.getElementById("peso").value = state.training.weightKg;
+      if(state.training.heightCm) document.getElementById("altura").value = state.training.heightCm;
+      document.getElementById("actividad").value = state.training.activity || "oficina";
+
+      calcularResumenFinanzas();
+      renderMovimientos();
+      renderEntrenamientoResumen();
+      renderListaCalorias();
+    }
+
+    function initTabs(){
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-tab");
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("activo"));
+          btn.classList.add("activo");
+          document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("activo"));
+          document.getElementById("tab-" + target).classList.add("activo");
+        });
+      });
+    }
+
+    function initFinanzasUI(){
+      document.getElementById("fecha").value = hoyISO();
+
+      document.getElementById("btn-guardar-config").addEventListener("click", () => {
+        const ingreso = Number(document.getElementById("ingreso-semanal").value) || 0;
+        const deuda = Number(document.getElementById("deuda-bancor").value) || 0;
+        state.weeklyIncome = ingreso;
+        state.initialDebt = deuda;
+        saveState();
+        calcularResumenFinanzas();
+        const t = document.getElementById("texto-config");
+        t.textContent = "Base actualizada: ingreso $" + ingreso.toLocaleString("es-AR") +
+          " / semana y deuda $" + deuda.toLocaleString("es-AR") + ".";
+        setTimeout(() => { t.textContent = ""; }, 3000);
+      });
+
+      document.getElementById("btn-agregar").addEventListener("click", () => {
+        const tipo = document.getElementById("tipo").value;
+        const monto = Number(document.getElementById("monto").value);
+        const desc = document.getElementById("descripcion").value.trim();
+        const fecha = document.getElementById("fecha").value || hoyISO();
+
+        if(!monto || monto <= 0){
+          alert("Poné un monto válido.");
+          return;
+        }
+        if(!fecha){
+          alert("Elegí una fecha.");
+          return;
+        }
+
+        state.movements.push({
+          id: Date.now(),
+          type: tipo,
+          amount: monto,
+          description: desc,
+          dateISO: fecha
+        });
+        saveState();
+
+        document.getElementById("monto").value = "";
+        document.getElementById("descripcion").value = "";
+
+        calcularResumenFinanzas();
+        renderMovimientos();
+      });
+    }
+
+    function initEntrenamientoUI(){
+      document.getElementById("fecha-cal").value = hoyISO();
+
+      document.getElementById("btn-guardar-fisico").addEventListener("click", () => {
+        const edad = Number(document.getElementById("edad").value) || 30;
+        const sexo = document.getElementById("sexo").value;
+        const peso = Number(document.getElementById("peso").value) || null;
+        const altura = Number(document.getElementById("altura").value) || null;
+        const actividad = document.getElementById("actividad").value;
+
+        state.training.age = edad;
+        state.training.sex = sexo;
+        state.training.weightKg = peso;
+        state.training.heightCm = altura;
+        state.training.activity = actividad;
+
+        saveState();
+        renderEntrenamientoResumen();
+
+        const t = document.getElementById("texto-fisico");
+        t.textContent = "Datos físicos guardados.";
+        setTimeout(() => { t.textContent = ""; }, 3000);
+      });
+
+      document.getElementById("btn-agregar-cal").addEventListener("click", () => {
+        const fecha = document.getElementById("fecha-cal").value || hoyISO();
+        const cals = Number(document.getElementById("cals-reloj").value);
+        const dist = Number(document.getElementById("dist-km").value) || 0;
+        const mins = Number(document.getElementById("minutos").value) || 0;
+
+        if(!cals || cals <= 0){
+          alert("Poné calorías válidas.");
+          return;
+        }
+
+        state.training.entries.push({
+          id: Date.now(),
+          dateISO: fecha,
+          calories: cals,
+          distKm: dist,
+          minutes: mins
+        });
+        saveState();
+
+        document.getElementById("cals-reloj").value = "";
+        document.getElementById("dist-km").value = "";
+        document.getElementById("minutos").value = "";
+
+        renderEntrenamientoResumen();
+        renderListaCalorias();
+      });
+    }
+
+    loadState();
+    window.addEventListener("DOMContentLoaded", () => {
+      initTabs();
+      initFinanzasUI();
+      initEntrenamientoUI();
+      refrescarUICompleta();
+    });
+  </script>
+</body>
+</html>
